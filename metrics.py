@@ -8,6 +8,8 @@ from utils import *
 import nltk
 import torch.nn.functional as F
 from nltk.corpus import brown
+from nltk import ngrams
+from nltk.tokenize import word_tokenize
 #nltk.download()
 
 def peplexity_greedy(model,dataloader,vocab,batch_size,device,is_lstm=False):
@@ -90,3 +92,19 @@ def percentage_correctly_spelled_words(words_from_text):
         if word in word_set:
           nb+=1
     return 100*nb/len(words_from_text)
+
+def n_grames_metric(gen_text,ref_text,n=1):
+     gen_tokens = word_tokenize(gen_text)
+     ref_tokens = word_tokenize(ref_text)
+     gen_ngrams = set(ngrams(gen_tokens, n))
+     ref_ngrams = set(ngrams(ref_tokens, n))
+     overlap = gen_ngrams.intersection(ref_ngrams)
+     return len(overlap)/len(gen_ngrams)
+
+def BLEU(gen_text,ref_text):
+     res = min(1,len(gen_text)/len(ref_text)) 
+     for n in range(1,2):
+        precision = n_grames_metric(" ".join(gen_text)," ".join(ref_text),n)
+        res*=precision
+     return res
+

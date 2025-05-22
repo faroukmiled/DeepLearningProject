@@ -65,16 +65,18 @@ def get_dataloader(dataset, batch_size):
 
 
 
-def train_RNN(dataset,seq_length, batch_size, hidden_size, epochs, learning_rate, device, vocab,char2idx,idx2char):
+def train_RNN(train_dataset,valid_dataset,seq_length, batch_size, hidden_size, epochs, learning_rate, device, vocab,char2idx,idx2char):
 
     # Get data
-    dataloader = get_dataloader(dataset,batch_size)
+    train_dataloader = get_dataloader(train_dataset,batch_size)
+    valid_dataloader = get_dataloader(valid_dataset,batch_size)
 
     # Model
     model = CharRNN(len(vocab), hidden_size, seq_length).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    losses = []
+    train_losses = []
+    valid_losses = []
     step = 0
 
     print(f'Training the RNN vanilla network.')
@@ -86,22 +88,24 @@ def train_RNN(dataset,seq_length, batch_size, hidden_size, epochs, learning_rate
 
         start_time = time.time()
 
-        for x_batch, y_batch in dataloader:
+        for x_batch, y_batch in train_dataloader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             hidden = model.init_hidden(batch_size).to(device)
             optimizer.zero_grad()
             output, hidden = model(x_batch, hidden)
             loss = criterion(output.view(-1, len(vocab)), y_batch.view(-1))
-            losses.append(loss.item())
+            if (step%100==0):
+                train_losses.append(loss.item())
+                #valid_losses.append(compute_loss(model,valid_dataloader,batch_size,vocab,device,is_lstm=False))
             loss.backward()
             optimizer.step()
             if (step%1000)==0:
                 print(step)
                 text = generat_text_greedy(model, start_string='ROMEO: ', char2idx= char2idx, idx2char=idx2char, device=device)
-                print(f"Iter : {step}")
-                print("generated text : ")
-                print(text)
-                save_path = "./models/vanilla_rnn.pth"
+                #print(f"Iter : {step}")
+                #print("generated text : ")
+                #print(text)
+                save_path = f"./models/vanilla_rnn_{hidden_size}.pth"
                 torch.save(model.state_dict(),save_path)
             step+=1
             if step>=2000:
@@ -113,30 +117,38 @@ def train_RNN(dataset,seq_length, batch_size, hidden_size, epochs, learning_rate
     print(f'Total training time {time.time()-initial_run_time:.2f}.\n')
 
 
-    return model, char2idx, idx2char,losses
+    return model, char2idx, idx2char,train_losses,valid_losses
 
 
 
-# Let's train the LSTM model
 
-'''
-seq_length = 10
-batch_size = 20
-hidden_size = 128
-epochs = 5
-learning_rate = 0.003
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-layers = 1
-'''
 
-def train_lstm(dataset,seq_length, batch_size, hidden_size, epochs, learning_rate, device, layers,vocab,char2idx,idx2char):
 
-    dataloader = get_dataloader(dataset,batch_size)
+def compute_loss(model,valid_dataloader,batch_size,vocab,device,is_lstm=False):
+    losses = []
+    criterion = nn.CrossEntropyLoss()
+    model.eval()
+    for x_batch, y_batch in valid_dataloader:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            if not is_lstm:
+                hidden = model.init_hidden(batch_size).to(device)
+            elif is_lstm:
+                hidden = model.init_hidden(batch_size, device)
+            output, hidden = model(x_batch, hidden)
+            loss = criterion(output.view(-1, len(vocab)), y_batch.view(-1))
+            losses.append(loss.item())
+    return sum(losses)/len(losses)
+
+def train_lstm(train_dataset,valid_dataset,seq_length, batch_size, hidden_size, epochs, learning_rate, device, layers,vocab,char2idx,idx2char):
+
+    dataloader = get_dataloader(train_dataset,batch_size)
+    valid_dataloader = get_dataloader(valid_dataset,batch_size)
     # Initialize model
     model_lstm = CharLSTM(len(vocab), hidden_size, num_layers= layers).to(device)
     optimizer = torch.optim.Adam(model_lstm.parameters(), lr = learning_rate)
     criterion = nn.CrossEntropyLoss()
-    losses = []
+    train_losses = []
+    valid_losses = []
     step = 0
 
     print(f'Training network LSTM of {layers} number of layers')
@@ -152,26 +164,28 @@ def train_lstm(dataset,seq_length, batch_size, hidden_size, epochs, learning_rat
             optimizer.zero_grad()
             output, hidden = model_lstm(x_batch, hidden)
             loss = criterion(output.view(-1, len(vocab)), y_batch.view(-1))
-            losses.append(loss.item())
+            if step%100==0:
+                train_losses.append(loss.item())
+                #valid_losses.append(compute_loss(model_lstm,valid_dataloader,batch_size,vocab,device,is_lstm=True))
             loss.backward()
             optimizer.step()
             if (step%1000)==0:
                 model_lstm.eval()
                 print(step)
-                text = generat_text_greedy(model_lstm, start_string='ROMEO: ', char2idx= char2idx, idx2char=idx2char, device=device,is_lstm=True)
+                #text = generat_text_greedy(model_lstm, start_string='ROMEO: ', char2idx= char2idx, idx2char=idx2char, device=device,is_lstm=True)
                 print(f"Iter : {step}")
-                print("generated text : ")
-                print(text)
+                #print("generated text : ")
+                #print(text)
                 save_path = f"./models/lstm_{layers}.pth"
                 torch.save(model_lstm.state_dict(),save_path)
             step+=1
-            if (step>=2000):
+            if (step>=1000):
                 break
 
         print(f'Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}, batch duration {time.time() - start_time:.2f} s')
 
     print(f'Total training time {time.time()-initial_run_time:.2f}.\n')
 
-    return model_lstm, char2idx, idx2char,losses
+    return model_lstm, char2idx, idx2char,train_losses,valid_losses
 
 

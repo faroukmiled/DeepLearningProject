@@ -110,3 +110,6 @@ def generat_text_nucleus_sampling(model, start_string,p, char2idx, idx2char, len
             input_eval = torch.tensor([[next_idx]]).to(device)
 
     return ''.join(generated)
+
+
+
