@@ -14,55 +14,72 @@ from nltk.tokenize import word_tokenize
 
 def peplexity_greedy(model,dataloader,vocab,batch_size,device,is_lstm=False):
     
-    if not is_lstm:
+    """if not is_lstm:
         hidden = model.init_hidden(batch_size).to(device)
     elif is_lstm:
-        hidden = model.init_hidden(batch_size, device)
+        hidden = model.init_hidden(batch_size, device)"""
     criterion = nn.CrossEntropyLoss()
     model.eval()
     losses = torch.zeros((len(dataloader),))
     step = 0
+    is_transformer = True
     for x_batch, y_batch in dataloader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            output, hidden = model(x_batch, hidden)
+            if is_transformer:
+                  output = model(x_batch)
+            else:
+                output, hidden = model(x_batch, hidden)
             loss = criterion(output.view(-1, len(vocab)), y_batch.view(-1))
             losses[step]=loss
             step+=1
+            print(step)
+            if step>=20:
+                 break
     return torch.exp(torch.mean(losses)).detach().numpy()
 
 def peplexity_temperature_scaling(model,dataloader,vocab,batch_size,device,T,is_lstm=False):
     
-    if not is_lstm:
+    """if not is_lstm:
         hidden = model.init_hidden(batch_size).to(device)
     elif is_lstm:
-        hidden = model.init_hidden(batch_size, device)
+        hidden = model.init_hidden(batch_size, device)"""
     criterion = nn.CrossEntropyLoss()
     model.eval()
+    is_tranformer = True
     losses = torch.zeros((len(dataloader),))
     step = 0
     for x_batch, y_batch in dataloader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            output, hidden = model(x_batch, hidden)
+            if is_tranformer:
+                 output= model(x_batch)
+            else:
+                 output, hidden = model(x_batch, hidden)
             output = output/T
             loss = criterion(output.view(-1, len(vocab)), y_batch.view(-1))
             losses[step]=loss
             step+=1
+            if step>=20:
+                 break
     return torch.exp(torch.mean(losses)).detach().numpy()
 
 
 def peplexity_nucleus_sampling(model,dataloader,vocab,batch_size,device,p,is_lstm=False):
     
-    if not is_lstm:
+    """if not is_lstm:
         hidden = model.init_hidden(batch_size).to(device)
     elif is_lstm:
-        hidden = model.init_hidden(batch_size, device)
+        hidden = model.init_hidden(batch_size, device)"""
     criterion = nn.NLLLoss()
     model.eval()
     losses = torch.zeros((len(dataloader),))
     step = 0
+    is_tranformer = True
     for x_batch, y_batch in dataloader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            output, hidden = model(x_batch, hidden)
+            if is_tranformer:
+                output = model(x_batch)
+            else:
+                 output, hidden = model(x_batch, hidden)
             output = output
             logits = output[:,-1, :] # In this line we can add temperature
             samp_probs = torch.softmax(logits, dim = 1).squeeze()
@@ -79,6 +96,8 @@ def peplexity_nucleus_sampling(model,dataloader,vocab,batch_size,device,p,is_lst
             next_logprobs = sorted_samp_probs.gather(1, sorted_next_indices).log()
             losses[step]=-torch.mean(next_logprobs)
             step+=1
+            if step>=20:
+                 break
     return torch.exp(torch.mean(losses)).detach().numpy()
 
 
